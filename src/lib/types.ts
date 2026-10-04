@@ -5,7 +5,17 @@
  * document, that is a contract question, not a type to be widened with a guess.
  */
 
-/** Error codes the contract defines. */
+/**
+ * Error codes from the contract's error table.
+ *
+ * FORBIDDEN, CONFLICT and RATE_LIMITED are declared by the API but not returned
+ * by any route today: there is no admin API to forbid, and no application-level
+ * rate limiter. They stay in the type because they are part of the envelope's
+ * contract, and handling one costs nothing.
+ *
+ * A repeated idempotency key is NOT a CONFLICT. It is a 200 replay carrying the
+ * original order, which is what POST /orders returns.
+ */
 export type ApiErrorCode =
   | 'VALIDATION_ERROR'
   | 'UNAUTHENTICATED'
@@ -50,9 +60,8 @@ export interface Product {
 }
 
 /**
- * GET /categories. Being added server-side; absent today, in which case the
- * endpoint answers 404 and the app renders no filter row. Ids and labels are
- * never hard-coded, because an unknown ?category= is a hard 400.
+ * GET /categories. Ids and labels come from the server; nothing is hard-coded,
+ * because an unknown `?category=` is a hard 400 rather than an ignored filter.
  */
 export interface Category {
   id: string;
@@ -124,13 +133,24 @@ export type OrderStatus = 'pending' | 'confirmed' | 'preparing' | 'out_for_deliv
 export type PaymentStatus = 'unpaid' | 'paid';
 
 /**
- * Bank transfer details are being added server-side and are absent today.
- * Optional so the app renders safely before and after they land.
+ * Bank transfer details, returned by POST /orders and GET /orders/[id] when the
+ * order is a bank transfer, and null otherwise. The key is always present so the
+ * shape stays stable and the confirmation screen has one code path.
+ *
+ * Not returned by GET /orders: a history list does not need banking details for
+ * every order.
+ *
+ * `isPlaceholder` is true while the shop's banking information is still the
+ * placeholder set. The app must surface that flag rather than presenting the
+ * details as real. It flips to false on its own once the real values land, so
+ * nothing here needs a second edit at that point.
  */
 export interface BankTransferDetails {
-  bankName?: string;
-  accountNumber?: string;
-  accountName?: string;
+  bankName: string;
+  accountName: string;
+  accountNumber: string;
+  instructions: string;
+  isPlaceholder: boolean;
 }
 
 export interface OrderSummary {
@@ -171,15 +191,22 @@ export interface Order extends OrderSummary {
   deliveryAddress: string;
   note: string | null;
   items: OrderItem[];
-  bankTransfer?: BankTransferDetails;
+  /** The object below for a bank transfer, null for pay on delivery. */
+  bankTransfer: BankTransferDetails | null;
 }
 
 /** POST /orders response. */
 export interface OrderPlaced extends OrderSummary {
   /** Whether Mailgun accepted the confirmation. Never affects the order. */
   emailSent: boolean;
-  /** True when the idempotency key matched an existing order. */
+  /**
+   * True when the idempotency key matched an order that already existed. This is
+   * a 200, not a CONFLICT, and the new body was ignored: the key, not the body,
+   * is the retry boundary.
+   */
   idempotentReplay: boolean;
+  /** The object below for a bank transfer, null for pay on delivery. */
+  bankTransfer: BankTransferDetails | null;
 }
 
 export interface Profile {

@@ -15,19 +15,15 @@ export default function CatalogScreen() {
   const products = useResource(() => listProducts(selected), selected ?? 'all');
   const [categories, setCategories] = useState<Category[]>([]);
 
-  // Categories come from the API. GET /categories answers 404 until it is added
-  // server-side, which listCategories turns into an empty list, so no filter row
-  // is rendered. No category id or label is hard-coded anywhere.
+  // Categories come from the API, refetched on focus so a category added
+  // server-side appears without an app release. Ids and labels are never
+  // hard-coded: an unknown ?category= is a hard 400, not an ignored filter.
   useFocusEffect(
     useCallback(() => {
       let active = true;
       void (async () => {
-        try {
-          const list = await listCategories();
-          if (active) setCategories(list);
-        } catch {
-          if (active) setCategories([]);
-        }
+        const list = await listCategories();
+        if (active) setCategories(list);
       })();
       return () => {
         active = false;

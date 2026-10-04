@@ -74,11 +74,17 @@ function codeForStatus(status: number): ApiErrorCode {
   }
 }
 
+/**
+ * Fallback copy for a code that arrived without a usable message. Only shown if
+ * the server sent a bare code.
+ */
 const MESSAGES: Record<ApiErrorCode, string> = {
   VALIDATION_ERROR: 'Please check the details and try again.',
   UNAUTHENTICATED: 'Please sign in to continue.',
   FORBIDDEN: 'You do not have access to that.',
   NOT_FOUND: 'We could not find that.',
+  // Reserved: no route returns CONFLICT today. A repeated idempotency key is a
+  // 200 replay with the original order, handled by the orders layer, not here.
   CONFLICT: 'That conflicts with something we already have.',
   RATE_LIMITED: 'Too many requests. Please wait a moment and try again.',
   INTERNAL: 'Something went wrong. Please try again.',

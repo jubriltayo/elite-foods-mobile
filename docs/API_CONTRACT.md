@@ -29,7 +29,11 @@ This document is the contract handed to the mobile project.
 | 15  | A repeated idempotency key returns the original order and **ignores a differing body**. Recorded, not "fixed".                                |
 | 16  | A public `GET /api/v1/delivery-areas` is added, because `deliveryArea` was validated but never documented to clients.                         |
 | 17  | Payment methods get a **sibling** endpoint, `/api/v1/payment-methods`, rather than being folded into `/delivery-areas`.                       |
-| 18  | Bank transfer details are **not** exposed by that endpoint; they are placeholders and belong on the order confirmation.                       |
+| 18  | Bank transfer details are **not** on the public `/payment-methods`; they ride with the order, flagged `isPlaceholder`.                        |
+| 19  | `GET /api/v1/categories` joins the other two public reference endpoints, for the same strict-validation reason.                               |
+| 20  | Bank transfer details key on the **stored** `payment_method`, so a client cannot request them for a pay-on-delivery order.                    |
+| 21  | `isPlaceholder` is **derived** from the config, so it flips to `false` when real details land, with no second edit.                           |
+| 22  | The error table's `409 CONFLICT` row was **wrong**; a mismatched idempotency body is a `200` replay. Corrected to match the code.             |
 
 ## The problem being solved
 
@@ -565,15 +569,31 @@ Failure:
 `fields` is present only for `VALIDATION_ERROR`. Internal detail, stack traces and
 driver messages go to the server log and are never returned.
 
-| Code               | HTTP | Meaning                                         |
-| ------------------ | ---- | ----------------------------------------------- |
-| `UNAUTHENTICATED`  | 401  | Missing, malformed or expired credential        |
-| `FORBIDDEN`        | 403  | Authenticated but not permitted                 |
-| `NOT_FOUND`        | 404  | Absent, **or owned by someone else**            |
-| `VALIDATION_ERROR` | 400  | Zod rejected the input                          |
-| `CONFLICT`         | 409  | Duplicate idempotency key with a different body |
-| `RATE_LIMITED`     | 429  | Too many requests                               |
-| `INTERNAL`         | 500  | Unexpected; logged, not described               |
+| Code               | HTTP | Meaning                                           |
+| ------------------ | ---- | ------------------------------------------------- |
+| `UNAUTHENTICATED`  | 401  | Missing, malformed or expired credential          |
+| `FORBIDDEN`        | 403  | Reserved. **Not currently returned by any route** |
+| `NOT_FOUND`        | 404  | Absent, **or owned by someone else**              |
+| `VALIDATION_ERROR` | 400  | Zod rejected the input                            |
+| `CONFLICT`         | 409  | Reserved. **Not currently returned by any route** |
+| `RATE_LIMITED`     | 429  | Reserved. **Not currently returned by any route** |
+| `INTERNAL`         | 500  | Unexpected; logged, not described                 |
+
+The code and its HTTP status are one table in `lib/api-response.ts`
+(`STATUS_BY_CODE`), so a code and its status cannot drift apart.
+
+**A repeated idempotency key with a different body is not a `409`.** An earlier draft
+of this table said so, which was wrong: the behaviour was verified in phase 4 and no
+route returns `CONFLICT`. A repeated key is answered **`200`** with the original order
+and `idempotentReplay: true`, and the new body is ignored — see
+`POST /api/v1/orders`. The key, not the body, is the retry boundary, so a client must
+mint a fresh key per distinct order attempt.
+
+`CONFLICT`, `FORBIDDEN` and `RATE_LIMITED` are declared and mapped to a status so that
+adding a feature that needs them does not also mean inventing an error convention, but
+**no endpoint returns them today**: there is no admin API to forbid, and no
+application-level rate limiter (see known gaps). A client should still handle them,
+because they are part of the envelope's contract.
 
 `404` rather than `403` for another customer's order is deliberate: a `403` would
 confirm the row exists.
@@ -585,6 +605,7 @@ confirm the row exists.
 | `POST` | `/api/v1/auth/token`      | none (Google ID token in body) | Exchange a Google ID token for a bearer token |
 | `GET`  | `/api/v1/delivery-areas`  | none                           | Delivery areas and their fees                 |
 | `GET`  | `/api/v1/payment-methods` | none                           | Valid payment methods and their labels        |
+| `GET`  | `/api/v1/categories`      | none                           | Valid category ids and their labels           |
 | `GET`  | `/api/v1/products`        | none                           | List products                                 |
 | `GET`  | `/api/v1/products/[slug]` | none                           | One product with variants                     |
 | `GET`  | `/api/v1/cart`            | required                       | Read the caller's cart, priced server-side    |
@@ -596,6 +617,44 @@ confirm the row exists.
 
 `required` means either credential: an `Authorization: Bearer <token>` header, or the
 Auth.js session cookie the browser already carries.
+
+### The three public reference endpoints
+
+`/delivery-areas`, `/payment-methods` and `/categories` exist for one shared reason.
+Each API validates a customer-supplied value strictly — an unrecognised category is a
+`400`, not a silently ignored typo — so a client needs to know the valid values without
+hardcoding them. All three are public, because browsing and building an order require no
+session, and all three read the same `lib/config/business.ts` constants the web app
+renders, so the app's labels cannot drift from the site's.
+
+None of them accepts input, and none touches the database.
+
+#### `GET /api/v1/categories`
+
+```json
+{
+  "data": {
+    "categories": [
+      { "id": "fried-snacks", "label": "Fried Snacks" },
+      { "id": "nuts-and-grains", "label": "Nuts and Grains" },
+      { "id": "drinks", "label": "Drinks" }
+    ]
+  },
+  "error": null
+}
+```
+
+`id` is the value to send as `?category=` to `GET /api/v1/products`. Ids come from
+`PRODUCT_CATEGORY_IDS`, the exact list that endpoint validates with `z.enum`, and labels
+from `categoryLabel`, the function the shop page renders.
+
+Verified to be the _exact_ accepted set, not merely a subset: all three ids return `200`
+from the real filter and each returns products that really carry that category, while
+five values the filter rejects — including `"Fried Snacks"`, `"fried_snacks"`, `"DRINKS"`
+and the empty string — return `400` and are not offered here. The categories present in
+the `products` table are exactly the categories offered, and the union of the three
+filtered results equals the unfiltered catalog, so filtering by an offered id loses no
+product.
 
 #### `GET /api/v1/delivery-areas`
 
@@ -644,12 +703,11 @@ endpoint cannot disagree. The list is in the enum's declared order.
 Both methods leave the order `unpaid`; bank transfer shows the banking details on the
 confirmation, and there is no automatic reconciliation.
 
-**The bank transfer account details are deliberately not exposed here.** They are
-placeholder values in `config/business.ts` pending the shop's real banking information
-(AGENTS.md section 27), and publishing placeholders as though they were real would be
-worse than publishing nothing. A client renders the choice from this endpoint and shows
-the details on the order confirmation, where the server supplies them once the order
-exists.
+**The bank transfer account details are deliberately not exposed here.** This endpoint is
+public and unauthenticated, so it must not carry payment instructions. A client renders
+the _choice_ from this endpoint and obtains the _details_ from the order itself — see
+"Bank transfer details", where they accompany a bank-transfer order and are flagged with
+`isPlaceholder`.
 
 Verified, 26 assertions: no credential required; every returned id is accepted by the
 real `checkoutSchema` and is a known payment method; the ids equal `PAYMENT_METHODS` in
@@ -860,7 +918,8 @@ it anyway has it stripped rather than honoured. The only basket is the saved car
     "paymentStatus": "unpaid",
     "createdAt": "2026-10-04T12:00:00Z",
     "emailSent": true,
-    "idempotentReplay": false
+    "idempotentReplay": false,
+    "bankTransfer": null
   },
   "error": null
 }
@@ -875,6 +934,9 @@ an error. See "Mailgun failure" under known gaps.
 
 `idempotentReplay` is `true` when the key matched an order that already existed, in
 which case this call created nothing, cleared no cart and sent no second email.
+
+`bankTransfer` is the object below when the order is a bank transfer, and `null`
+otherwise. See "Bank transfer details".
 
 **Repeating a key with a different body returns the original order and ignores the
 new body.** The key, not the body, is the retry boundary. A client must therefore mint
@@ -950,7 +1012,8 @@ real and turn this endpoint into a probe for other customers' orders.
         "quantity": 2,
         "lineTotal": 600
       }
-    ]
+    ],
+    "bankTransfer": null
   },
   "error": null
 }
@@ -960,6 +1023,49 @@ The item fields are **historical snapshots** taken at checkout, so a later renam
 reprice cannot rewrite what an order says. `variantId` is `null` when the variant was
 deleted after the order was placed; the snapshot still stands.
 
+### Bank transfer details
+
+A bank-transfer customer cannot pay without the account details, so `POST /api/v1/orders`
+and `GET /api/v1/orders/[id]` include them when the order is a bank transfer:
+
+```json
+{
+  "bankName": "...",
+  "accountName": "...",
+  "accountNumber": "...",
+  "instructions": "...",
+  "isPlaceholder": true
+}
+```
+
+`bankTransfer` is `null` for pay on delivery. The key is always present, so the shape
+stays stable and a client renders one code path rather than testing for `undefined`.
+
+Values come from `BANK_TRANSFER` in `lib/config/business.ts`, the same constant the web
+confirmation page reads, so the app cannot show different details from the web.
+
+**`isPlaceholder` is currently `true`.** These are placeholder values pending the shop's
+real banking information (AGENTS.md section 27), and a client that displayed them
+without saying so would be presenting invented banking details as real. A client should
+show the details but surface the flag, for example by labelling the payment instructions
+as provisional. The flag is derived from the configured values rather than stored
+separately, so **it flips to `false` automatically** once `BANK_TRANSFER` is replaced
+with the real details, with no second edit to remember.
+
+Deliberately **not** included:
+
+- **Not on `GET /api/v1/orders`.** A history list does not need banking details for every
+  order, and the summary shape should not grow.
+- **Not on `GET /api/v1/payment-methods`.** That endpoint is public and unauthenticated,
+  so it must not carry per-shop payment instructions.
+- **Not on the `403`/`404`/`401` bodies.** Ownership is unchanged: another customer's
+  order is still `404`, and that body contains no bank details.
+
+The mapper keys on the order's **stored** `payment_method`, never on anything the client
+sent, so a client cannot be talked into seeing bank details for a pay-on-delivery order.
+Verified by changing the stored column directly in the database behind the API's back:
+the response follows it to `bank_transfer` and back to `pay_on_delivery`.
+
 ---
 
 ## Execution order
@@ -967,24 +1073,28 @@ deleted after the order was placed; the snapshot still stands.
 Each slice ends with `npm run check` and `npm run build` passing, plus the
 phase-specific verification, plus cleanup of any test data.
 
-| #   | Slice                                            | Shippable outcome                                       |
-| --- | ------------------------------------------------ | ------------------------------------------------------- |
-| 0   | `AGENTS.md`, `PRD.md`, `TRD.md`, this plan       | Scope change recorded; docs stop contradicting the code |
-| 1a  | `0003_cart.sql` migration                        | Tables exist, RLS on                                    |
-| 1b  | `lib/cart.ts` + `api-response.ts` + validation   | Server cart logic                                       |
-| 1c  | `/api/v1/cart` routes                            | Cart over HTTP                                          |
-| 1d  | Rewire `cart-context.ts` and consumers           | **Shared-cart requirement is true**                     |
-| 2   | Catalog endpoints                                | Mobile can browse                                       |
-| 3a  | `jose`, env, `getProfileByGoogleSub`             | Foundations                                             |
-| 3b  | `api-auth.ts`, `api-token.ts`, `google-token.ts` | Credential handling                                     |
-| 3c  | `/api/v1/auth/token` route                       | **Mobile can authenticate as the same user**            |
-| 4a  | Extract `lib/checkout.ts` from the Server Action | One implementation of the checkout rules                |
-| 4b  | Order endpoints                                  | Mobile can buy and see history                          |
-| 4c  | `/api/v1/delivery-areas`                         | Mobile can show a total before ordering                 |
-| 4d  | `/api/v1/payment-methods`                        | Mobile can render the payment choice from the server    |
+| #   | Slice                                            | Shippable outcome                                         |
+| --- | ------------------------------------------------ | --------------------------------------------------------- |
+| 0   | `AGENTS.md`, `PRD.md`, `TRD.md`, this plan       | Scope change recorded; docs stop contradicting the code   |
+| 1a  | `0003_cart.sql` migration                        | Tables exist, RLS on                                      |
+| 1b  | `lib/cart.ts` + `api-response.ts` + validation   | Server cart logic                                         |
+| 1c  | `/api/v1/cart` routes                            | Cart over HTTP                                            |
+| 1d  | Rewire `cart-context.ts` and consumers           | **Shared-cart requirement is true**                       |
+| 2   | Catalog endpoints                                | Mobile can browse                                         |
+| 3a  | `jose`, env, `getProfileByGoogleSub`             | Foundations                                               |
+| 3b  | `api-auth.ts`, `api-token.ts`, `google-token.ts` | Credential handling                                       |
+| 3c  | `/api/v1/auth/token` route                       | **Mobile can authenticate as the same user**              |
+| 4a  | Extract `lib/checkout.ts` from the Server Action | One implementation of the checkout rules                  |
+| 4b  | Order endpoints                                  | Mobile can buy and see history                            |
+| 4c  | `/api/v1/delivery-areas`                         | Mobile can show a total before ordering                   |
+| 4d  | `/api/v1/payment-methods`                        | Mobile can render the payment choice from the server      |
+| 5a  | `/api/v1/categories`                             | Mobile can filter without hardcoding category ids         |
+| 5b  | `bankTransfer` on the order responses            | A bank-transfer customer can actually pay                 |
+| 5c  | Correct the `409 CONFLICT` row                   | The contract stops describing behaviour that is not there |
 
 **All slices are complete.** The whole customer journey is now reachable from a mobile
-client: browse, sign in as the same customer, share the cart, buy, and read history.
+client: browse and filter, sign in as the same customer, share the cart, buy by either
+payment method, and read history.
 
 Slices 1b, 3b and 4a contain the logic worth reviewing most carefully — they are the
 places where a mistake is a security or money bug rather than a visual one.
@@ -1006,9 +1116,11 @@ places where a mistake is a security or money bug rather than a visual one.
 - **Several dead lines** can exist in one cart, because `NULL`s are distinct in the
   unique constraint. Intended.
 - **Bank transfer details are placeholders** in `config/business.ts`. They are marked as
-  such in the source, shown on the order confirmation, and deliberately not exposed by
-  `/api/v1/payment-methods`. They must be replaced with the shop's real banking
-  information before a bank-transfer order can be fulfilled.
+  such in the source, shown on the order confirmation, and now also returned by
+  `POST /api/v1/orders` and `GET /api/v1/orders/[id]` with `isPlaceholder: true` so a
+  client can label them as provisional instead of passing them off as real. They must be
+  replaced with the shop's real banking information before a bank-transfer order can be
+  fulfilled; the flag then flips to `false` on its own.
 - **Mailgun is a free sandbox account.** It only delivers to authorised recipients and
   returns `403` for anyone else. The order is unaffected — that is the point, and it is
   now verified — but before a real launch the account needs a paid plan or a verified
