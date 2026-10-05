@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 
+import { Button, Card, Pill } from '../../src/components/Feedback';
 import { toDisplayMessage } from '../../src/lib/api';
 import { probeSessionCart } from '../../src/lib/sessionProbe';
 import { useSession } from '../../src/lib/session';
-import { colors, radii, spacing } from '../../src/theme';
+import { colors, spacing } from '../../src/theme';
 
 export default function AccountScreen() {
   const { status, profile, isProvisional, signOut } = useSession();
@@ -29,7 +30,7 @@ export default function AccountScreen() {
 
   if (status === 'loading') {
     return (
-      <View style={styles.screen}>
+      <View style={styles.centre}>
         <Text style={styles.body}>Checking your session…</Text>
       </View>
     );
@@ -37,81 +38,80 @@ export default function AccountScreen() {
 
   if (status === 'signed-out') {
     return (
-      <View style={styles.screen}>
-        <Text style={styles.title}>Account</Text>
-        <Text style={styles.body}>
-          Sign in with Google to see your details, your cart and your orders.
-        </Text>
-        <Pressable
-          onPress={() => router.push('/sign-in')}
-          style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}
-          accessibilityRole="button"
-        >
-          <Text style={styles.buttonLabel}>Sign in with Google</Text>
-        </Pressable>
-      </View>
+      <ScrollView contentContainerStyle={styles.scroll}>
+        <View style={styles.intro}>
+          <Text style={styles.title}>Account</Text>
+          <Text style={styles.body}>
+            Sign in with Google to see your details, your cart and your orders. Your cart follows you between your
+            phone and the website.
+          </Text>
+        </View>
+        <Button label="Sign in with Google" onPress={() => router.push('/sign-in')} />
+      </ScrollView>
     );
   }
 
   return (
-    <View style={styles.screen}>
-      <Text style={styles.title}>Account</Text>
+    <ScrollView contentContainerStyle={styles.scroll}>
+      <View style={styles.intro}>
+        <Text style={styles.title}>Account</Text>
+      </View>
 
-      <View style={styles.card}>
-        <Text style={styles.name}>{profile?.fullName || 'Signed in'}</Text>
+      <Card style={styles.card}>
+        <View style={styles.nameRow}>
+          <Text style={styles.name}>{profile?.fullName || 'Signed in'}</Text>
+          <Pill label={profile?.role === 'admin' ? 'Admin' : 'Customer'} tone="brand" />
+        </View>
         {profile?.email ? <Text style={styles.email}>{profile.email}</Text> : null}
         {isProvisional ? (
           // Shown rather than hidden: after a cold start these details come from
           // a cache, not from a fresh exchange, and there is no GET /me to
           // confirm them.
-          <Text style={styles.provisional}>Details shown from this device. They refresh when you sign in again.</Text>
+          <Text style={styles.provisional}>Shown from this device. They refresh when you sign in again.</Text>
         ) : null}
-      </View>
+      </Card>
+
+      <Button label="Sign out" onPress={() => void signOut()} variant="secondary" />
 
       {/*
         A diagnostic, not a feature: it exists to confirm the stored token is
         accepted by the API. Development only, so it never ships.
       */}
       {__DEV__ ? (
-        <Pressable
-          onPress={() => void onCheck()}
-          disabled={checking}
-          style={({ pressed }) => [styles.button, styles.buttonOutline, pressed && styles.buttonPressed]}
-          accessibilityRole="button"
-        >
-          <Text style={[styles.buttonLabel, styles.buttonLabelRed]}>{checking ? 'Checking…' : 'Check my session'}</Text>
-        </Pressable>
+        <>
+          <Button label={checking ? 'Checking…' : 'Check my session'} onPress={() => void onCheck()} variant="ghost" busy={checking} />
+          {probe ? <Text style={styles.probe}>{probe}</Text> : null}
+        </>
       ) : null}
 
-      {__DEV__ && probe ? <Text style={styles.probe}>{probe}</Text> : null}
-
-      <Pressable
-        onPress={() => void signOut()}
-        style={({ pressed }) => [styles.button, styles.buttonOutline, pressed && styles.buttonPressed]}
-        accessibilityRole="button"
-      >
-        <Text style={[styles.buttonLabel, styles.buttonLabelRed]}>Sign out</Text>
-      </Pressable>
-
       <Text style={styles.note}>
-        Signing out clears the token from this device. The API does not support revoking a token before it
-        expires, so it stays valid for up to an hour.
+        Signing out clears the token from this device. The API does not support revoking a token before it expires, so it
+        stays valid for up to an hour.
       </Text>
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: colors.cream,
+  scroll: {
     padding: spacing.lg,
     gap: spacing.md,
+    flexGrow: 1,
+  },
+  centre: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: spacing.xl,
+  },
+  intro: {
+    gap: spacing.sm,
   },
   title: {
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: '700',
     color: colors.charcoal,
+    letterSpacing: -0.3,
   },
   body: {
     fontSize: 15,
@@ -119,17 +119,19 @@ const styles = StyleSheet.create({
     color: colors.muted,
   },
   card: {
-    backgroundColor: colors.white,
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: spacing.lg,
     gap: spacing.xs,
+  },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.md,
   },
   name: {
     fontSize: 18,
     fontWeight: '600',
     color: colors.charcoal,
+    flexShrink: 1,
   },
   email: {
     fontSize: 14,
@@ -143,30 +145,6 @@ const styles = StyleSheet.create({
   probe: {
     fontSize: 13,
     color: colors.charcoal,
-  },
-  button: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.red,
-    borderRadius: radii.md,
-    paddingVertical: spacing.md,
-    minHeight: 48,
-  },
-  buttonOutline: {
-    backgroundColor: colors.white,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  buttonPressed: {
-    opacity: 0.7,
-  },
-  buttonLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.white,
-  },
-  buttonLabelRed: {
-    color: colors.red,
   },
   note: {
     marginTop: spacing.sm,

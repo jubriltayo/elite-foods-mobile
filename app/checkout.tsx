@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 
-import { ErrorState, LoadingState } from '../src/components/States';
+import { Button, Card, EmptyState, ErrorBanner, SkeletonRows } from '../src/components/Feedback';
 import { ApiError, isApiError, toDisplayMessage } from '../src/lib/api';
 import { useCart } from '../src/lib/cart';
 import { beginAttempt, createKeyRef, endAttempt } from '../src/lib/idempotency';
@@ -110,33 +110,27 @@ export default function CheckoutScreen() {
     // Placing an order requires an account. The cart is unreachable while signed
     // out, so this is the only way in.
     return (
-      <View style={styles.centre}>
-        <Text style={styles.centreTitle}>Sign in to check out</Text>
-        <Text style={styles.centreBody}>Your cart is saved to your account.</Text>
-        <Pressable onPress={() => router.replace('/sign-in')} style={({ pressed }) => [styles.primary, pressed && styles.pressed]}>
-          <Text style={styles.primaryLabel}>Sign in with Google</Text>
-        </Pressable>
-      </View>
+      <EmptyState
+        title="Sign in to check out"
+        body="Your cart is saved to your account."
+        actionLabel="Sign in with Google"
+        onAction={() => router.replace('/sign-in')}
+      />
     );
   }
 
   if (!cart) {
-    return (
-      <View style={styles.centre}>
-        <Text style={styles.centreBody}>Loading your cart…</Text>
-      </View>
-    );
+    return <SkeletonRows count={3} />;
   }
 
   if (items.length === 0) {
     return (
-      <View style={styles.centre}>
-        <Text style={styles.centreTitle}>Your cart is empty</Text>
-        <Text style={styles.centreBody}>Add something from the shop before checking out.</Text>
-        <Pressable onPress={() => router.replace('/')} style={({ pressed }) => [styles.primary, pressed && styles.pressed]}>
-          <Text style={styles.primaryLabel}>Browse the shop</Text>
-        </Pressable>
-      </View>
+      <EmptyState
+        title="Your cart is empty"
+        body="Add something from the shop before checking out."
+        actionLabel="Browse the shop"
+        onAction={() => router.replace('/')}
+      />
     );
   }
 
@@ -146,16 +140,14 @@ export default function CheckoutScreen() {
    */
   if (issues.length > 0) {
     return (
-      <View style={styles.centre}>
-        <Text style={styles.centreTitle}>Your cart needs attention</Text>
-        <Text style={styles.centreBody}>
-          {issues.length === 1 ? 'One item' : `${issues.length} items`} cannot be ordered. Remove{' '}
-          {issues.length === 1 ? 'it' : 'them'} from your cart to continue.
-        </Text>
-        <Pressable onPress={() => router.replace('/cart')} style={({ pressed }) => [styles.primary, pressed && styles.pressed]}>
-          <Text style={styles.primaryLabel}>Go to your cart</Text>
-        </Pressable>
-      </View>
+      <EmptyState
+        title="Your cart needs attention"
+        body={`${issues.length === 1 ? 'One item' : `${issues.length} items`} cannot be ordered. Remove ${
+          issues.length === 1 ? 'it' : 'them'
+        } from your cart to continue.`}
+        actionLabel="Go to your cart"
+        onAction={() => router.replace('/cart')}
+      />
     );
   }
 
@@ -202,16 +194,13 @@ export default function CheckoutScreen() {
 
       router.replace({ pathname: '/order/[id]', params: { id: placed.id } });
     } catch (caught) {
-      const retriable = shouldReuseKey(caught);
-
-      if (retriable) {
-        // The outcome is unknown: the order may or may not exist. Keep the key so
-        // a retry is answered with the original order instead of a second one.
-      } else {
-        // A definite rejection. Reusing this key could return the rejected
-        // order, so it is discarded.
+      if (!shouldReuseKey(caught)) {
+        // A definite rejection, or a validation error where nothing was created.
+        // Reusing this key could return the rejected order.
         endAttempt(keyRef.current);
       }
+      // Otherwise the outcome is unknown: the order may or may not exist, so the
+      // key is kept and a retry is answered with the original order.
 
       // Per-field messages are placed next to their inputs when the server sends
       // them. `fields` is documented as present for VALIDATION_ERROR but is in
@@ -232,62 +221,61 @@ export default function CheckoutScreen() {
   return (
     <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        {banner ? (
-          <View style={styles.banner}>
-            <Text style={styles.bannerText}>{banner}</Text>
+        {banner ? <ErrorBanner message={banner} /> : null}
+        {referenceError ? <ErrorBanner message={referenceError} /> : null}
+        {loadingReference ? <SkeletonRows count={2} /> : null}
+
+        <Card style={styles.card}>
+          <Text style={styles.cardTitle}>Delivery</Text>
+
+          <Field
+            label="Full name"
+            value={form.customerName}
+            onChange={(value) => setField('customerName', value)}
+            error={fieldErrors.customerName}
+            autoComplete="name"
+          />
+
+          <Field
+            label="Phone number"
+            value={form.customerPhone}
+            onChange={(value) => setField('customerPhone', value)}
+            error={fieldErrors.customerPhone}
+            // Deliberately permissive: both 08030511967 and +2348030511967 are
+            // accepted by the server, which stores a normalized form.
+            placeholder="08030511967"
+            keyboardType="phone-pad"
+            autoComplete="tel"
+          />
+
+          <View style={styles.group}>
+            <Text style={styles.label}>Area</Text>
+            <View style={styles.options}>
+              {areas.map((area) => (
+                <Option
+                  key={area.id}
+                  label={area.label}
+                  detail={`${formatNaira(asNaira(area.fee))} delivery`}
+                  active={form.deliveryArea === area.id}
+                  onPress={() => setField('deliveryArea', area.id)}
+                />
+              ))}
+            </View>
+            {fieldErrors.deliveryArea ? <Text style={styles.error}>{fieldErrors.deliveryArea}</Text> : null}
           </View>
-        ) : null}
 
-        {referenceError ? <ErrorState message={referenceError} /> : null}
-        {loadingReference ? <LoadingState /> : null}
+          <Field
+            label="Address"
+            value={form.deliveryAddress}
+            onChange={(value) => setField('deliveryAddress', value)}
+            error={fieldErrors.deliveryAddress}
+            multiline
+            autoComplete="street-address"
+          />
+        </Card>
 
-        <Field
-          label="Full name"
-          value={form.customerName}
-          onChange={(value) => setField('customerName', value)}
-          error={fieldErrors.customerName}
-          autoComplete="name"
-        />
-
-        <Field
-          label="Phone number"
-          value={form.customerPhone}
-          onChange={(value) => setField('customerPhone', value)}
-          error={fieldErrors.customerPhone}
-          // Deliberately permissive: both 08030511967 and +2348030511967 are
-          // accepted by the server, which stores a normalized form.
-          placeholder="08030511967"
-          keyboardType="phone-pad"
-          autoComplete="tel"
-        />
-
-        <View style={styles.group}>
-          <Text style={styles.label}>Delivery area</Text>
-          <View style={styles.options}>
-            {areas.map((area) => (
-              <Option
-                key={area.id}
-                label={area.label}
-                detail={formatNaira(asNaira(area.fee))}
-                active={form.deliveryArea === area.id}
-                onPress={() => setField('deliveryArea', area.id)}
-              />
-            ))}
-          </View>
-          {fieldErrors.deliveryArea ? <Text style={styles.error}>{fieldErrors.deliveryArea}</Text> : null}
-        </View>
-
-        <Field
-          label="Delivery address"
-          value={form.deliveryAddress}
-          onChange={(value) => setField('deliveryAddress', value)}
-          error={fieldErrors.deliveryAddress}
-          multiline
-          autoComplete="street-address"
-        />
-
-        <View style={styles.group}>
-          <Text style={styles.label}>How would you like to pay?</Text>
+        <Card style={styles.card}>
+          <Text style={styles.cardTitle}>Payment</Text>
           <View style={styles.options}>
             {methods.map((method) => (
               <Option
@@ -299,34 +287,33 @@ export default function CheckoutScreen() {
             ))}
           </View>
           {fieldErrors.paymentMethod ? <Text style={styles.error}>{fieldErrors.paymentMethod}</Text> : null}
-        </View>
 
-        <Field
-          label="Note (optional)"
-          value={form.note}
-          onChange={(value) => setField('note', value)}
-          error={fieldErrors.note}
-          multiline
-        />
+          <Field
+            label="Note (optional)"
+            value={form.note}
+            onChange={(value) => setField('note', value)}
+            error={fieldErrors.note}
+            multiline
+          />
+        </Card>
 
-        <View style={styles.summary}>
+        <Card style={styles.card}>
+          <Text style={styles.cardTitle}>Summary</Text>
           <SummaryRow label="Subtotal" value={formatNaira(asNaira(subtotal))} />
           <SummaryRow label="Delivery" value={fee === null ? '—' : formatNaira(asNaira(fee))} />
           <View style={styles.divider} />
           <SummaryRow label="Total" value={formatNaira(asNaira(total))} emphasis />
           <Text style={styles.footnote}>The final total is calculated by Elite Foods when your order is saved.</Text>
-        </View>
+        </Card>
       </ScrollView>
 
       <View style={styles.footer}>
-        <Pressable
+        <Button
+          label={`Place order · ${formatNaira(asNaira(total))}`}
           onPress={() => void onPlace()}
           disabled={disabled}
-          style={({ pressed }) => [styles.primary, disabled && styles.primaryDisabled, pressed && styles.pressed]}
-          accessibilityRole="button"
-        >
-          <Text style={styles.primaryLabel}>{placing ? 'Placing your order…' : `Place order · ${formatNaira(asNaira(total))}`}</Text>
-        </Pressable>
+          busy={placing}
+        />
       </View>
     </KeyboardAvoidingView>
   );
@@ -407,7 +394,10 @@ function Option({
       accessibilityRole="radio"
       accessibilityState={{ selected: active }}
     >
-      <Text style={[styles.optionLabel, active && styles.optionLabelActive]}>{label}</Text>
+      <View style={styles.optionMark}>
+        <View style={[styles.radio, active && styles.radioActive]}>{active ? <View style={styles.radioDot} /> : null}</View>
+        <Text style={[styles.optionLabel, active && styles.optionLabelActive]}>{label}</Text>
+      </View>
       {detail ? <Text style={[styles.optionDetail, active && styles.optionDetailActive]}>{detail}</Text> : null}
     </Pressable>
   );
@@ -429,50 +419,27 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: spacing.lg,
-    gap: spacing.lg,
+    gap: spacing.md,
     paddingBottom: spacing.xxl,
   },
-  centre: {
-    flex: 1,
-    backgroundColor: colors.cream,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: spacing.xl,
-    gap: spacing.sm,
+  card: {
+    gap: spacing.md,
   },
-  centreTitle: {
-    fontSize: 20,
+  cardTitle: {
+    fontSize: 16,
     fontWeight: '700',
     color: colors.charcoal,
-    textAlign: 'center',
-  },
-  centreBody: {
-    fontSize: 15,
-    lineHeight: 22,
-    color: colors.muted,
-    textAlign: 'center',
-  },
-  banner: {
-    backgroundColor: colors.white,
-    borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: colors.red,
-    padding: spacing.md,
-  },
-  bannerText: {
-    fontSize: 14,
-    color: colors.red,
   },
   group: {
     gap: spacing.sm,
   },
   label: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '500',
     color: colors.charcoal,
   },
   input: {
-    backgroundColor: colors.white,
+    backgroundColor: colors.cream,
     borderRadius: radii.md,
     borderWidth: 1,
     borderColor: colors.border,
@@ -483,11 +450,12 @@ const styles = StyleSheet.create({
     minHeight: 48,
   },
   inputMultiline: {
-    minHeight: 88,
+    minHeight: 84,
     textAlignVertical: 'top',
   },
   inputError: {
     borderColor: colors.red,
+    backgroundColor: colors.white,
   },
   error: {
     fontSize: 13,
@@ -500,39 +468,57 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: colors.white,
+    backgroundColor: colors.cream,
     borderRadius: radii.md,
     borderWidth: 1,
     borderColor: colors.border,
-    padding: spacing.md,
-    minHeight: 48,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    minHeight: 52,
   },
   optionActive: {
     borderColor: colors.red,
-    backgroundColor: colors.cream,
+    borderWidth: 1.5,
+    backgroundColor: colors.white,
+  },
+  optionMark: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    flexShrink: 1,
+  },
+  radio: {
+    width: 20,
+    height: 20,
+    borderRadius: radii.pill,
+    borderWidth: 2,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  radioActive: {
+    borderColor: colors.red,
+  },
+  radioDot: {
+    width: 9,
+    height: 9,
+    borderRadius: radii.pill,
+    backgroundColor: colors.red,
   },
   optionLabel: {
     fontSize: 15,
     color: colors.charcoal,
   },
   optionLabelActive: {
-    fontWeight: '700',
+    fontWeight: '600',
   },
   optionDetail: {
-    fontSize: 14,
+    fontSize: 13,
     color: colors.muted,
   },
   optionDetailActive: {
     color: colors.red,
     fontWeight: '600',
-  },
-  summary: {
-    backgroundColor: colors.white,
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: spacing.lg,
-    gap: spacing.sm,
   },
   summaryRow: {
     flexDirection: 'row',
@@ -552,7 +538,7 @@ const styles = StyleSheet.create({
     color: colors.charcoal,
   },
   summaryValueEmphasis: {
-    fontSize: 20,
+    fontSize: 21,
     fontWeight: '700',
     color: colors.red,
   },
@@ -563,6 +549,7 @@ const styles = StyleSheet.create({
   },
   footnote: {
     fontSize: 12,
+    lineHeight: 17,
     color: colors.muted,
   },
   footer: {
@@ -570,24 +557,5 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.border,
     padding: spacing.lg,
-  },
-  primary: {
-    backgroundColor: colors.red,
-    borderRadius: radii.md,
-    paddingVertical: spacing.md,
-    minHeight: 50,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  primaryDisabled: {
-    opacity: 0.5,
-  },
-  primaryLabel: {
-    color: colors.white,
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  pressed: {
-    opacity: 0.7,
   },
 });

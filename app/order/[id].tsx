@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { Stack, useLocalSearchParams } from 'expo-router';
 
-import { LoadingState } from '../../src/components/States';
+import { Button, Card, EmptyState, Pill, SkeletonRows, StatusPill } from '../../src/components/Feedback';
 import { isApiError } from '../../src/lib/api';
 import { asNaira, formatNaira } from '../../src/lib/money';
 import { getOrder } from '../../src/lib/orders';
@@ -20,9 +20,9 @@ export default function OrderScreen() {
     <View style={styles.screen}>
       <Stack.Screen options={{ title: 'Order' }} />
       {order.loading ? (
-        <LoadingState />
+        <SkeletonRows count={4} />
       ) : order.error ? (
-        <NotFound message={order.error} notFound={isApiError(order.error) && order.error.code === 'NOT_FOUND'} />
+        <NotFound notFound={isApiError(order.error) && order.error.code === 'NOT_FOUND'} />
       ) : order.data ? (
         <OrderDetail order={order.data} onChanged={order.reload} />
       ) : null}
@@ -31,7 +31,7 @@ export default function OrderScreen() {
 }
 
 function OrderDetail({ order, onChanged }: { order: Order; onChanged: () => void }) {
-  const [methods, setMethods] = useState<string[]>([]);
+  const [labels, setLabels] = useState<Record<string, string>>({});
 
   // Labels come from the server so the button text here cannot disagree with the
   // checkout picker or the web.
@@ -40,11 +40,12 @@ function OrderDetail({ order, onChanged }: { order: Order; onChanged: () => void
     void (async () => {
       try {
         const list = await getPaymentMethods();
-        if (active) setMethods(list.map((method) => method.id));
+        if (!active) return;
+        setLabels(Object.fromEntries(list.map((method) => [method.id, method.label])));
       } catch {
-        // A missing label is cosmetic; the raw id is a poor fallback, so show the
-        // stored method only if the list could not be read at all.
-        if (active) setMethods([]);
+        // A missing label is cosmetic. The stored id stands in, and the raw value
+        // is never invented here.
+        if (active) setLabels({});
       }
     })();
     return () => {
@@ -52,24 +53,26 @@ function OrderDetail({ order, onChanged }: { order: Order; onChanged: () => void
     };
   }, []);
 
-  const methodLabel = methods.find((id) => id === order.paymentMethod) ?? order.paymentMethod;
   const isBankTransfer = order.paymentMethod === 'bank_transfer';
 
   return (
     <ScrollView contentContainerStyle={styles.content}>
       <View style={styles.hero}>
-        <Text style={styles.heroLabel}>Order placed</Text>
-        <Text style={styles.orderNumber}>{order.orderNumber}</Text>
-        <Text style={styles.status}>{humanStatus(order.status)}</Text>
+        <View style={styles.heroMark}>
+          <Text style={styles.heroTick}>✓</Text>
+        </View>
+        <Text style={styles.heroTitle}>Order received</Text>
+        <Text style={styles.heroOrderNumber}>{order.orderNumber}</Text>
+        <StatusPill status={order.status} />
       </View>
 
-      <View style={styles.card}>
+      <Card style={styles.card}>
         <Text style={styles.cardTitle}>Items</Text>
         {order.items.map((item, index) => (
           <View key={`${item.productName}-${item.variantLabel}-${index}`} style={styles.line}>
             <View style={styles.lineBody}>
               <Text style={styles.lineName}>{item.productName}</Text>
-              <Text style={styles.lineVariant}>
+              <Text style={styles.lineMeta}>
                 {item.variantLabel} · {formatNaira(asNaira(item.unitPrice))} each
               </Text>
             </View>
@@ -79,27 +82,37 @@ function OrderDetail({ order, onChanged }: { order: Order; onChanged: () => void
             </View>
           </View>
         ))}
-      </View>
+      </Card>
 
-      <View style={styles.card}>
+      <Card style={styles.card}>
         <Text style={styles.cardTitle}>Summary</Text>
         <Row label="Subtotal" value={formatNaira(asNaira(order.subtotal))} />
         <Row label="Delivery" value={formatNaira(asNaira(order.deliveryFee))} />
         <View style={styles.divider} />
         <Row label="Total" value={formatNaira(asNaira(order.total))} emphasis />
-      </View>
+      </Card>
 
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>Details</Text>
+      <Card style={styles.card}>
+        <Text style={styles.cardTitle}>Delivery</Text>
         <Row label="Name" value={order.customerName} />
         <Row label="Phone" value={order.customerPhone} />
         <Row label="Area" value={order.deliveryArea} />
         <Row label="Address" value={order.deliveryAddress} />
         {order.note ? <Row label="Note" value={order.note} /> : null}
-        <Row label="Payment" value={methodLabel} />
-        <Row label="Payment status" value={humanPaymentStatus(order.paymentStatus)} />
         <Text style={styles.timestamp}>{new Date(order.createdAt).toLocaleString()}</Text>
-      </View>
+      </Card>
+
+      <Card style={styles.card}>
+        <Text style={styles.cardTitle}>Payment</Text>
+        <Row label="Method" value={labels[order.paymentMethod] ?? order.paymentMethod} />
+        <View style={styles.paymentStatus}>
+          <Text style={styles.rowLabel}>Status</Text>
+          <Pill
+            label={order.paymentStatus === 'paid' ? 'Paid' : 'Not paid yet'}
+            tone={order.paymentStatus === 'paid' ? 'positive' : 'warning'}
+          />
+        </View>
+      </Card>
 
       {/*
         Bank transfer details ride with the order, never with the public payment
@@ -116,16 +129,14 @@ function OrderDetail({ order, onChanged }: { order: Order; onChanged: () => void
             isPlaceholder={order.bankTransfer.isPlaceholder}
           />
         ) : (
-          <View style={[styles.card, styles.warnCard]}>
+          <Card style={[styles.card, styles.warnCard]}>
             <Text style={styles.cardTitle}>Bank transfer</Text>
             <Text style={styles.body}>Contact the shop for transfer details.</Text>
-          </View>
+          </Card>
         )
       ) : null}
 
-      <Pressable onPress={onChanged} style={({ pressed }) => [styles.refresh, pressed && styles.pressed]} accessibilityRole="button">
-        <Text style={styles.refreshLabel}>Refresh</Text>
-      </Pressable>
+      <Button label="Refresh" onPress={onChanged} variant="secondary" />
 
       {/*
         `emailSent` is deliberately not consulted here. It only appears on the
@@ -159,7 +170,7 @@ function BankTransferBlock({
   };
 
   return (
-    <View style={[styles.card, isPlaceholder && styles.warnCard]}>
+    <Card style={[styles.card, isPlaceholder && styles.warnCard]}>
       <Text style={styles.cardTitle}>Bank transfer</Text>
 
       {isPlaceholder ? (
@@ -178,16 +189,14 @@ function BankTransferBlock({
 
       <View style={styles.accountRow}>
         <View style={styles.lineBody}>
-          <Text style={styles.fieldLabel}>Account number</Text>
+          <Text style={styles.rowLabel}>Account number</Text>
           <Text style={styles.accountNumber}>{accountNumber}</Text>
         </View>
-        <Pressable onPress={() => void onCopy()} style={({ pressed }) => [styles.copyButton, pressed && styles.pressed]} accessibilityRole="button">
-          <Text style={styles.copyLabel}>{copied ? 'Copied' : 'Copy'}</Text>
-        </Pressable>
+        <Button label={copied ? 'Copied' : 'Copy'} onPress={() => void onCopy()} variant="secondary" />
       </View>
 
       {instructions ? <Text style={styles.body}>{instructions}</Text> : null}
-    </View>
+    </Card>
   );
 }
 
@@ -209,36 +218,17 @@ function Row({ label, value, emphasis }: { label: string; value: string; emphasi
  * exist, so the two are deliberately indistinguishable here: a distinct message
  * would confirm the id is real.
  */
-function NotFound({ message, notFound }: { message: string; notFound: boolean }) {
+function NotFound({ notFound }: { notFound: boolean }) {
   return (
-    <View style={styles.centre}>
-      <Text style={styles.centreTitle}>{notFound ? 'Order not found' : 'Something went wrong'}</Text>
-      <Text style={styles.centreBody}>{notFound ? 'We could not find that order on your account.' : message}</Text>
-    </View>
+    <EmptyState
+      title={notFound ? 'Order not found' : 'Something went wrong'}
+      body={
+        notFound
+          ? 'We could not find that order on your account.'
+          : 'We could not load that order. Please try again.'
+      }
+    />
   );
-}
-
-function humanStatus(status: string): string {
-  switch (status) {
-    case 'pending':
-      return 'Received';
-    case 'confirmed':
-      return 'Confirmed';
-    case 'preparing':
-      return 'Being prepared';
-    case 'out_for_delivery':
-      return 'On the way';
-    case 'delivered':
-      return 'Delivered';
-    case 'cancelled':
-      return 'Cancelled';
-    default:
-      return status;
-  }
-}
-
-function humanPaymentStatus(status: string): string {
-  return status === 'paid' ? 'Paid' : 'Not paid yet';
 }
 
 const styles = StyleSheet.create({
@@ -252,33 +242,40 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.xxl,
   },
   hero: {
+    alignItems: 'center',
     backgroundColor: colors.white,
     borderRadius: radii.lg,
     borderWidth: 1,
     borderColor: colors.border,
-    padding: spacing.lg,
+    padding: spacing.xl,
     gap: spacing.xs,
   },
-  heroLabel: {
-    fontSize: 13,
-    color: colors.muted,
+  heroMark: {
+    width: 52,
+    height: 52,
+    borderRadius: radii.pill,
+    backgroundColor: '#E8F5EC',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.sm,
   },
-  orderNumber: {
-    fontSize: 24,
+  heroTick: {
+    fontSize: 26,
+    lineHeight: 30,
+    color: '#2E6B41',
+    fontWeight: '700',
+  },
+  heroTitle: {
+    fontSize: 20,
     fontWeight: '700',
     color: colors.charcoal,
   },
-  status: {
+  heroOrderNumber: {
     fontSize: 15,
-    color: colors.red,
-    fontWeight: '600',
+    color: colors.muted,
+    marginBottom: spacing.sm,
   },
   card: {
-    backgroundColor: colors.white,
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: spacing.lg,
     gap: spacing.sm,
   },
   warnCard: {
@@ -288,6 +285,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: colors.charcoal,
+    marginBottom: spacing.xs,
   },
   line: {
     flexDirection: 'row',
@@ -305,10 +303,10 @@ const styles = StyleSheet.create({
   },
   lineName: {
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: '500',
     color: colors.charcoal,
   },
-  lineVariant: {
+  lineMeta: {
     fontSize: 13,
     color: colors.muted,
   },
@@ -325,7 +323,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     gap: spacing.md,
-    paddingVertical: 2,
+    paddingVertical: 3,
   },
   rowLabel: {
     fontSize: 14,
@@ -343,14 +341,16 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.red,
   },
+  paymentStatus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 3,
+  },
   divider: {
     height: 1,
     backgroundColor: colors.border,
     marginVertical: spacing.sm,
-  },
-  fieldLabel: {
-    fontSize: 14,
-    color: colors.muted,
   },
   accountRow: {
     flexDirection: 'row',
@@ -365,24 +365,9 @@ const styles = StyleSheet.create({
     color: colors.charcoal,
     letterSpacing: 1,
   },
-  copyButton: {
-    backgroundColor: colors.cream,
-    borderRadius: radii.sm,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-    minHeight: 40,
-    justifyContent: 'center',
-  },
-  copyLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.red,
-  },
   placeholderNote: {
     backgroundColor: colors.cream,
-    borderRadius: radii.sm,
+    borderRadius: radii.md,
     borderWidth: 1,
     borderColor: colors.mango,
     padding: spacing.md,
@@ -402,36 +387,5 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.muted,
     marginTop: spacing.xs,
-  },
-  refresh: {
-    alignItems: 'center',
-    paddingVertical: spacing.md,
-  },
-  refreshLabel: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: colors.red,
-  },
-  pressed: {
-    opacity: 0.7,
-  },
-  centre: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: spacing.xl,
-    gap: spacing.sm,
-  },
-  centreTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: colors.charcoal,
-    textAlign: 'center',
-  },
-  centreBody: {
-    fontSize: 15,
-    lineHeight: 22,
-    color: colors.muted,
-    textAlign: 'center',
   },
 });

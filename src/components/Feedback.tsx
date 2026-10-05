@@ -169,6 +169,41 @@ export function SkeletonRows({ count = 3 }: { count?: number }) {
   );
 }
 
+/* ---------------------------------------------------------- StatusPill -- */
+
+/**
+ * An order's status as a coloured pill.
+ *
+ * Lives here rather than on a screen because both the history list and the order
+ * detail render it, and the two must not drift apart on wording or colour.
+ */
+export function StatusPill({ status }: { status: string }) {
+  const tone: PillTone =
+    status === 'delivered' ? 'positive' : status === 'cancelled' ? 'warning' : 'brand';
+
+  return <Pill label={humanOrderStatus(status)} tone={tone} />;
+}
+
+/** The server's stored status, phrased for a customer. */
+export function humanOrderStatus(status: string): string {
+  switch (status) {
+    case 'pending':
+      return 'Received';
+    case 'confirmed':
+      return 'Confirmed';
+    case 'preparing':
+      return 'Being prepared';
+    case 'out_for_delivery':
+      return 'On the way';
+    case 'delivered':
+      return 'Delivered';
+    case 'cancelled':
+      return 'Cancelled';
+    default:
+      return status;
+  }
+}
+
 /* ---------------------------------------------------------------- Styles -- */
 
 const styles = StyleSheet.create({

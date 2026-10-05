@@ -2,9 +2,10 @@ import { useCallback, useEffect } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 
+import { Button, Card, EmptyState, ErrorBanner, Pill, SkeletonRows } from '../../src/components/Feedback';
 import { ProductImage } from '../../src/components/ProductImage';
 import { QuantityStepper } from '../../src/components/QuantityStepper';
-import { useCart, describeIssue } from '../../src/lib/cart';
+import { describeIssue, useCart } from '../../src/lib/cart';
 import { asNaira, formatNaira } from '../../src/lib/money';
 import { useSession } from '../../src/lib/session';
 import type { CartIssue, CartItem } from '../../src/lib/types';
@@ -26,46 +27,30 @@ export default function CartScreen() {
 
   if (status !== 'signed-in') {
     return (
-      <View style={styles.centre}>
-        <Text style={styles.centreTitle}>Your cart is saved to your account</Text>
-        <Text style={styles.centreBody}>
-          Sign in with Google to start a cart. It follows you between your phone and the website.
-        </Text>
-        <Pressable
-          onPress={() => router.push('/sign-in')}
-          style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}
-          accessibilityRole="button"
-        >
-          <Text style={styles.primaryLabel}>Sign in with Google</Text>
-        </Pressable>
-      </View>
+      <EmptyState
+        title="Your cart is saved to your account"
+        body="Sign in with Google to start a cart. It follows you between your phone and the website."
+        actionLabel="Sign in with Google"
+        onAction={() => router.push('/sign-in')}
+      />
     );
   }
-
-  const items = cart?.items ?? [];
-  const issues = cart?.issues ?? [];
 
   if (!cart) {
-    return (
-      <View style={styles.centre}>
-        <Text style={styles.centreBody}>Loading your cart…</Text>
-      </View>
-    );
+    return <SkeletonRows count={3} />;
   }
+
+  const items = cart.items;
+  const issues = cart.issues;
 
   if (items.length === 0 && issues.length === 0) {
     return (
-      <View style={styles.centre}>
-        <Text style={styles.centreTitle}>Your cart is empty</Text>
-        <Text style={styles.centreBody}>Add something from the shop and it will appear here.</Text>
-        <Pressable
-          onPress={() => router.push('/')}
-          style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}
-          accessibilityRole="button"
-        >
-          <Text style={styles.primaryLabel}>Browse the shop</Text>
-        </Pressable>
-      </View>
+      <EmptyState
+        title="Your cart is empty"
+        body="Add something from the shop and it will appear here."
+        actionLabel="Browse the shop"
+        onAction={() => router.push('/')}
+      />
     );
   }
 
@@ -76,7 +61,6 @@ export default function CartScreen() {
         keyExtractor={(item) => item.lineId}
         contentContainerStyle={styles.list}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
-        refreshing={false}
         onRefresh={() => void refresh()}
         ListHeaderComponent={
           <View style={styles.header}>
@@ -93,26 +77,20 @@ export default function CartScreen() {
           />
         )}
         ListFooterComponent={
-          <View style={styles.footer}>
-            <View style={styles.subtotalRow}>
-              <Text style={styles.subtotalLabel}>Subtotal</Text>
-              {/* The server's figure. Delivery is not included and is not yet known. */}
-              <Text style={styles.subtotalValue}>{formatNaira(asNaira(cart.subtotal))}</Text>
+          <Card style={styles.summary}>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Subtotal</Text>
+              <Text style={styles.summaryValue}>{formatNaira(asNaira(cart.subtotal))}</Text>
             </View>
-            <Text style={styles.footnote}>Delivery is calculated at checkout.</Text>
-            <Text style={styles.footnote}>
-              {cart.itemCount} {cart.itemCount === 1 ? 'item' : 'items'}
-            </Text>
+            <View style={styles.summaryMeta}>
+              <Text style={styles.footnote}>
+                {cart.itemCount} {cart.itemCount === 1 ? 'item' : 'items'}
+              </Text>
+              <Text style={styles.footnote}>Delivery calculated at checkout</Text>
+            </View>
 
-            <Pressable
-              onPress={() => router.push('/checkout')}
-              disabled={busy}
-              style={({ pressed }) => [styles.checkoutButton, pressed && styles.pressed]}
-              accessibilityRole="button"
-            >
-              <Text style={styles.checkoutLabel}>Checkout</Text>
-            </Pressable>
-          </View>
+            <Button label="Checkout" onPress={() => router.push('/checkout')} disabled={busy} style={styles.checkout} />
+          </Card>
         }
       />
     </View>
@@ -131,8 +109,8 @@ function CartLine({
   onRemove: () => void;
 }) {
   return (
-    <View style={styles.line}>
-      <ProductImage slug={item.product.slug} imageUrl={item.product.imageUrl} size={72} />
+    <Card padded={false} style={styles.line}>
+      <ProductImage slug={item.product.slug} imageUrl={item.product.imageUrl} size={88} rounded={radii.md} />
 
       <View style={styles.lineBody}>
         <Text style={styles.lineName} numberOfLines={2}>
@@ -147,19 +125,20 @@ function CartLine({
         </View>
 
         <Pressable onPress={onRemove} disabled={busy} accessibilityRole="button" accessibilityLabel={`Remove ${item.product.name}`}>
-          <Text style={[styles.remove, busy && styles.removeDisabled]}>Remove</Text>
+          <Text style={[styles.remove, busy && styles.mutedAction]}>Remove</Text>
         </Pressable>
       </View>
-    </View>
+    </Card>
   );
 }
 
 function IssueList({ issues, busy, onClear }: { issues: CartIssue[]; busy: boolean; onClear: () => void }) {
   return (
     <View style={styles.issueBox}>
-      <Text style={styles.issueTitle}>
-        {issues.length === 1 ? '1 item needs attention' : `${issues.length} items need attention`}
-      </Text>
+      <View style={styles.issueHeader}>
+        <Pill label={issues.length === 1 ? '1 item' : `${issues.length} items`} tone="warning" />
+        <Text style={styles.issueTitle}>needs attention</Text>
+      </View>
 
       {issues.map((issue) => (
         <Text key={issue.lineId} style={styles.issueText}>
@@ -169,19 +148,11 @@ function IssueList({ issues, busy, onClear }: { issues: CartIssue[]; busy: boole
 
       {/* The server excludes these from subtotal and itemCount. Saying so stops
           the total looking wrong when an item is visibly present. */}
-      <Text style={styles.issueNote}>These are not included in your subtotal.</Text>
+      <Text style={styles.issueNote}>Not included in your subtotal.</Text>
 
       <Pressable onPress={onClear} disabled={busy} accessibilityRole="button">
-        <Text style={[styles.issueAction, busy && styles.removeDisabled]}>{busy ? 'Removing…' : 'Remove these items'}</Text>
+        <Text style={[styles.issueAction, busy && styles.mutedAction]}>{busy ? 'Removing…' : 'Remove these items'}</Text>
       </Pressable>
-    </View>
-  );
-}
-
-function ErrorBanner({ message }: { message: string }) {
-  return (
-    <View style={styles.errorBox}>
-      <Text style={styles.errorText}>{message}</Text>
     </View>
   );
 }
@@ -193,6 +164,7 @@ const styles = StyleSheet.create({
   },
   list: {
     padding: spacing.lg,
+    paddingBottom: spacing.xxl,
   },
   separator: {
     height: spacing.md,
@@ -201,51 +173,9 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     marginBottom: spacing.md,
   },
-  centre: {
-    flex: 1,
-    backgroundColor: colors.cream,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: spacing.xl,
-    gap: spacing.sm,
-  },
-  centreTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: colors.charcoal,
-    textAlign: 'center',
-  },
-  centreBody: {
-    fontSize: 15,
-    lineHeight: 22,
-    color: colors.muted,
-    textAlign: 'center',
-  },
-  primaryButton: {
-    marginTop: spacing.lg,
-    backgroundColor: colors.red,
-    borderRadius: radii.md,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.xl,
-    minHeight: 48,
-    justifyContent: 'center',
-  },
-  primaryLabel: {
-    color: colors.white,
-    fontSize: 16,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  pressed: {
-    opacity: 0.7,
-  },
   line: {
     flexDirection: 'row',
     gap: spacing.md,
-    backgroundColor: colors.white,
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
     padding: spacing.md,
   },
   lineBody: {
@@ -278,64 +208,62 @@ const styles = StyleSheet.create({
   },
   remove: {
     fontSize: 13,
+    fontWeight: '600',
     color: colors.red,
     marginTop: spacing.sm,
+    alignSelf: 'flex-start',
   },
-  removeDisabled: {
-    opacity: 0.4,
+  mutedAction: {
+    color: colors.muted,
   },
-  footer: {
-    marginTop: spacing.xl,
-    paddingTop: spacing.lg,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    gap: spacing.xs,
+  summary: {
+    marginTop: spacing.lg,
+    gap: spacing.sm,
   },
-  subtotalRow: {
+  summaryRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  subtotalLabel: {
+  summaryLabel: {
     fontSize: 17,
     fontWeight: '600',
     color: colors.charcoal,
   },
-  subtotalValue: {
-    fontSize: 20,
+  summaryValue: {
+    fontSize: 22,
     fontWeight: '700',
     color: colors.red,
+  },
+  summaryMeta: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
   },
   footnote: {
     fontSize: 13,
     color: colors.muted,
   },
-  checkoutButton: {
-    marginTop: spacing.md,
-    backgroundColor: colors.red,
-    borderRadius: radii.md,
-    paddingVertical: spacing.md,
-    minHeight: 50,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  checkoutLabel: {
-    color: colors.white,
-    fontSize: 16,
-    fontWeight: '600',
+  checkout: {
+    marginTop: spacing.sm,
   },
   issueBox: {
     backgroundColor: colors.white,
-    borderRadius: radii.md,
+    borderRadius: radii.lg,
     borderWidth: 1,
-    borderColor: colors.coral,
-    padding: spacing.md,
+    borderColor: colors.mango,
+    padding: spacing.lg,
     gap: spacing.xs,
+  },
+  issueHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: spacing.xs,
   },
   issueTitle: {
     fontSize: 14,
-    fontWeight: '700',
-    color: colors.coral,
+    fontWeight: '600',
+    color: colors.charcoal,
   },
   issueText: {
     fontSize: 14,
@@ -344,23 +272,11 @@ const styles = StyleSheet.create({
   issueNote: {
     fontSize: 12,
     color: colors.muted,
-    marginTop: spacing.xs,
   },
   issueAction: {
     fontSize: 14,
     fontWeight: '600',
     color: colors.red,
     marginTop: spacing.sm,
-  },
-  errorBox: {
-    backgroundColor: colors.white,
-    borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: colors.red,
-    padding: spacing.md,
-  },
-  errorText: {
-    fontSize: 14,
-    color: colors.red,
   },
 });
