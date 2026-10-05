@@ -12,7 +12,7 @@
       },
       "env": {
         "EXPO_PUBLIC_API_URL": "https://elite-foods.vercel.app/api/v1",
-        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "REPLACE_WITH_YOUR_WEB_CLIENT_ID"
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "105840008015-r50ng1kmdq2p60frtjhd0of4p72o4tbe.apps.googleusercontent.com"
       }
     },
     "preview": {
