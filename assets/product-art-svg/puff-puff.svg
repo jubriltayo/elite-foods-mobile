@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 470 470" width="470" height="470" role="img">
+  <defs>
+    <linearGradient id="gpuff" x1="0" y1="0" x2="0.65" y2="1">
+      <stop offset="0%" stop-color="#fff9ef"/>
+      <stop offset="100%" stop-color="#ffedda"/>
+    </linearGradient>
+    <filter id="spuff" x="-25%" y="-25%" width="150%" height="150%">
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#d9a44a" flood-opacity="0.16"/>
+    </filter>
+  </defs>
+  <rect width="470" height="470" fill="url(#gpuff)"/>
+  <circle cx="398" cy="66" r="130" fill="#ffffff" opacity="0.34"/>
+  <circle cx="54" cy="418" r="160" fill="#d9a44a" opacity="0.05"/>
+  <g filter="url(#spuff)"><g fill="#d9a44a" opacity="0.82">
+          <circle cx="182" cy="230" r="48"/><circle cx="286" cy="212" r="42"/>
+          <circle cx="238" cy="300" r="52"/><circle cx="322" cy="308" r="40"/>
+        </g>
+        <g fill="#ffffff" opacity="0.42"><circle cx="164" cy="212" r="14"/><circle cx="268" cy="196" r="12"/><circle cx="220" cy="280" r="16"/></g></g>
+</svg>

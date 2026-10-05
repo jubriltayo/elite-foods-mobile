@@ -3,7 +3,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 
 import { ErrorState, LoadingState } from '../../src/components/States';
-import { ProductImage } from '../../src/components/ProductCard';
+import { ProductImage } from '../../src/components/ProductImage';
 import { QuantityStepper } from '../../src/components/QuantityStepper';
 import { useCart } from '../../src/lib/cart';
 import { getProduct } from '../../src/lib/catalog';
@@ -63,7 +63,7 @@ export default function ProductScreen() {
       ) : (
         <>
           <ScrollView contentContainerStyle={styles.content}>
-            <ProductImage uri={product.data.imageUrl} size={220} rounded={radii.lg} />
+            <ProductImage slug={product.data.slug} imageUrl={product.data.imageUrl} size={220} rounded={radii.lg} />
 
             <View style={styles.header}>
               <Text style={styles.name}>{product.data.name}</Text>

@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 470 470" width="470" height="470" role="img">
+  <defs>
+    <linearGradient id="gakar" x1="0" y1="0" x2="0.65" y2="1">
+      <stop offset="0%" stop-color="#fff3e0"/>
+      <stop offset="100%" stop-color="#ffe3bd"/>
+    </linearGradient>
+    <filter id="sakar" x="-25%" y="-25%" width="150%" height="150%">
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#e09a38" flood-opacity="0.16"/>
+    </filter>
+  </defs>
+  <rect width="470" height="470" fill="url(#gakar)"/>
+  <circle cx="398" cy="66" r="130" fill="#ffffff" opacity="0.34"/>
+  <circle cx="54" cy="418" r="160" fill="#e09a38" opacity="0.05"/>
+  <g filter="url(#sakar)"><g fill="#e09a38" opacity="0.82">
+          <circle cx="170" cy="226" r="40"/><circle cx="246" cy="196" r="34"/>
+          <circle cx="312" cy="238" r="42"/><circle cx="204" cy="292" r="36"/>
+          <circle cx="286" cy="304" r="38"/><circle cx="240" cy="358" r="30"/>
+        </g></g>
+</svg>

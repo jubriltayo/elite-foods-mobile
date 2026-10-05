@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 470 470" width="470" height="470" role="img">
+  <defs>
+    <linearGradient id="gplan" x1="0" y1="0" x2="0.65" y2="1">
+      <stop offset="0%" stop-color="#fff4e2"/>
+      <stop offset="100%" stop-color="#ffe4c4"/>
+    </linearGradient>
+    <filter id="splan" x="-25%" y="-25%" width="150%" height="150%">
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#e2952f" flood-opacity="0.16"/>
+    </filter>
+  </defs>
+  <rect width="470" height="470" fill="url(#gplan)"/>
+  <circle cx="398" cy="66" r="130" fill="#ffffff" opacity="0.34"/>
+  <circle cx="54" cy="418" r="160" fill="#e2952f" opacity="0.05"/>
+  <g filter="url(#splan)">
+        <g fill="#e2952f" opacity="0.8">
+          <path d="M150 250a80 60 0 0 1 160-16 56 52 0 0 1-24 78 84 54 0 0 1-128 10 60 46 0 0 1-8-72Z"/>
+          <path d="M186 320a62 48 0 0 1 124-12 44 42 0 0 1-18 62 66 42 0 0 1-100 8 48 38 0 0 1-6-58Z" opacity="0.8"/>
+        </g></g>
+</svg>

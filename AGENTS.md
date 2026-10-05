@@ -16,7 +16,7 @@ Customer-only mobile app for Elite Foods and Snacks. A client of an existing API
 7. Orders: generate a fresh Idempotency-Key (uuid) per order attempt. Reuse the same key only when retrying the same attempt after a network failure. Never reuse a key for a new order. Orders are placed from the server cart; never send items.
 8. Reference data comes from the API: GET /delivery-areas and GET /payment-methods. Do not hard-code areas, fees or payment methods.
 9. Cart issues (unavailable, variant_missing, quantity_capped) must be shown to the user. Dead lines are removed by resubmitting the cart with PUT /cart.
-10. product.imageUrl is null today. Use a local placeholder image when null. Do not point at web assets.
+10. product.imageUrl is null today. Images resolve in three steps: the server's imageUrl when it is non-null, then a local illustration keyed by product slug, then a generic fallback. Local art is allowed and lives in assets/product-art/ as committed PNGs. Do not point at web assets: the web app's illustrations live in its own public directory and cannot be loaded by a phone. Do not add an SVG renderer or any other native module for this.
 11. Mutations: update the UI optimistically, then replace with the server response; on failure revert and show an error.
 12. Bank transfer account details come from the order confirmation response, never hard-coded.
 

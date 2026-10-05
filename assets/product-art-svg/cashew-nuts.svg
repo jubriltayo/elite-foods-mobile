@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 470 470" width="470" height="470" role="img">
+  <defs>
+    <linearGradient id="gcash" x1="0" y1="0" x2="0.65" y2="1">
+      <stop offset="0%" stop-color="#fdf5e9"/>
+      <stop offset="100%" stop-color="#f7e8d2"/>
+    </linearGradient>
+    <filter id="scash" x="-25%" y="-25%" width="150%" height="150%">
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#b88340" flood-opacity="0.16"/>
+    </filter>
+  </defs>
+  <rect width="470" height="470" fill="url(#gcash)"/>
+  <circle cx="398" cy="66" r="130" fill="#ffffff" opacity="0.34"/>
+  <circle cx="54" cy="418" r="160" fill="#b88340" opacity="0.05"/>
+  <g filter="url(#scash)">
+        <g fill="#b88340" opacity="0.8">
+          <path d="M198 214a76 62 0 0 1 108 34 58 58 0 0 1-42 84 84 62 0 0 1-108-40 54 52 0 0 1 42-78Z"/>
+          <path d="M214 320a62 52 0 0 1 92 30 46 46 0 0 1-32 66 68 52 0 0 1-92-32 44 44 0 0 1 32-64Z" opacity="0.85"/>
+        </g>
+        <ellipse cx="230" cy="240" rx="26" ry="16" transform="rotate(-24 230 240)" fill="#ffffff" opacity="0.42"/></g>
+</svg>

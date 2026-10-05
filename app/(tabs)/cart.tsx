@@ -2,7 +2,7 @@ import { useCallback, useEffect } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 
-import { ProductImage } from '../../src/components/ProductCard';
+import { ProductImage } from '../../src/components/ProductImage';
 import { QuantityStepper } from '../../src/components/QuantityStepper';
 import { useCart, describeIssue } from '../../src/lib/cart';
 import { asNaira, formatNaira } from '../../src/lib/money';
@@ -132,7 +132,7 @@ function CartLine({
 }) {
   return (
     <View style={styles.line}>
-      <ProductImage uri={item.product.imageUrl} size={72} />
+      <ProductImage slug={item.product.slug} imageUrl={item.product.imageUrl} size={72} />
 
       <View style={styles.lineBody}>
         <Text style={styles.lineName} numberOfLines={2}>

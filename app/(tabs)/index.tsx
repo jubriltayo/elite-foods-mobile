@@ -2,8 +2,9 @@ import { useCallback, useState } from 'react';
 import { FlatList, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 
-import { ErrorState, LoadingState } from '../../src/components/States';
 import { ProductCard } from '../../src/components/ProductCard';
+import { ProductImage } from '../../src/components/ProductImage';
+import { EmptyState, ErrorBanner, SkeletonGrid } from '../../src/components/Feedback';
 import { listCategories, listProducts } from '../../src/lib/catalog';
 import { useResource } from '../../src/lib/useResource';
 import type { Category } from '../../src/lib/types';
@@ -33,8 +34,17 @@ export default function CatalogScreen() {
 
   return (
     <View style={styles.screen}>
+      <View style={styles.header}>
+        <Text style={styles.heading}>Shop</Text>
+        <Text style={styles.subheading}>Snacks and drinks, delivered to your door.</Text>
+      </View>
+
       {categories.length > 0 ? (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filters}
+        >
           <Chip label="All" active={selected === undefined} onPress={() => setSelected(undefined)} />
           {categories.map((category) => (
             <Chip
@@ -48,32 +58,36 @@ export default function CatalogScreen() {
       ) : null}
 
       {products.loading ? (
-        <LoadingState />
+        <SkeletonGrid />
       ) : products.error ? (
-        <ErrorState message={products.error} hint="Pull down to try again." />
+        <ErrorBanner message={products.error} hint="Pull down to try again." />
+      ) : (products.data ?? []).length === 0 ? (
+        <EmptyState
+          title="Nothing here yet"
+          body="No products to show right now."
+          actionLabel="Show everything"
+          onAction={() => setSelected(undefined)}
+        />
       ) : (
         <FlatList
           data={products.data ?? []}
           keyExtractor={(product) => product.slug}
+          numColumns={2}
+          columnWrapperStyle={styles.column}
           contentContainerStyle={styles.list}
-          ItemSeparatorComponent={() => <View style={styles.separator} />}
           onRefresh={products.reload}
           refreshing={products.loading}
           renderItem={({ item }) => (
-            <ProductCard
-              name={item.name}
-              imageUrl={item.imageUrl}
-              price={item.startingPrice}
-              isAvailable={item.isAvailable}
-              onPress={() => router.push({ pathname: '/product/[slug]', params: { slug: item.slug } })}
-            />
-          )}
-          ListEmptyComponent={
-            <View style={styles.empty}>
-              <Text style={styles.emptyTitle}>Nothing here yet</Text>
-              <Text style={styles.emptyBody}>No products to show right now.</Text>
+            <View style={styles.cell}>
+              <ProductCard
+                name={item.name}
+                price={item.startingPrice}
+                isAvailable={item.isAvailable}
+                image={<ProductImage slug={item.slug} imageUrl={item.imageUrl} size={200} rounded={0} />}
+                onPress={() => router.push({ pathname: '/product/[slug]', params: { slug: item.slug } })}
+              />
             </View>
-          }
+          )}
         />
       )}
     </View>
@@ -98,11 +112,26 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.cream,
   },
+  header: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    gap: 2,
+  },
+  heading: {
+    fontSize: 26,
+    fontWeight: '700',
+    color: colors.charcoal,
+    letterSpacing: -0.3,
+  },
+  subheading: {
+    fontSize: 14,
+    color: colors.muted,
+  },
   filters: {
     flexDirection: 'row',
     gap: spacing.sm,
     paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
+    paddingVertical: spacing.lg,
   },
   chip: {
     paddingHorizontal: spacing.lg,
@@ -118,6 +147,7 @@ const styles = StyleSheet.create({
   },
   chipLabel: {
     fontSize: 13,
+    fontWeight: '500',
     color: colors.charcoal,
   },
   chipLabelActive: {
@@ -125,24 +155,14 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   list: {
-    padding: spacing.lg,
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.xxl,
+  },
+  column: {
     gap: spacing.md,
   },
-  separator: {
-    height: spacing.md,
-  },
-  empty: {
-    alignItems: 'center',
-    paddingVertical: spacing.xxl,
-    gap: spacing.xs,
-  },
-  emptyTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.charcoal,
-  },
-  emptyBody: {
-    fontSize: 14,
-    color: colors.muted,
+  cell: {
+    flex: 1,
+    marginBottom: spacing.md,
   },
 });

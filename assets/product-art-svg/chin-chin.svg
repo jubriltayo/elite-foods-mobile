@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 470 470" width="470" height="470" role="img">
+  <defs>
+    <linearGradient id="gchin" x1="0" y1="0" x2="0.65" y2="1">
+      <stop offset="0%" stop-color="#fff6e8"/>
+      <stop offset="100%" stop-color="#ffe9cd"/>
+    </linearGradient>
+    <filter id="schin" x="-25%" y="-25%" width="150%" height="150%">
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#dd9a37" flood-opacity="0.16"/>
+    </filter>
+  </defs>
+  <rect width="470" height="470" fill="url(#gchin)"/>
+  <circle cx="398" cy="66" r="130" fill="#ffffff" opacity="0.34"/>
+  <circle cx="54" cy="418" r="160" fill="#dd9a37" opacity="0.05"/>
+  <g filter="url(#schin)">
+        <g fill="#dd9a37" opacity="0.78">
+          <rect x="140" y="196" width="190" height="26" rx="13" transform="rotate(-12 235 209)"/>
+          <rect x="152" y="240" width="200" height="24" rx="12" transform="rotate(6 252 252)"/>
+          <rect x="138" y="284" width="180" height="26" rx="13" transform="rotate(-6 228 297)"/>
+          <rect x="168" y="330" width="170" height="22" rx="11" transform="rotate(14 253 341)"/>
+        </g></g>
+</svg>
