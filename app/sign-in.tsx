@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { getWebClientId } from '../src/lib/auth';
@@ -11,6 +11,23 @@ export default function SignInScreen() {
   const { signIn, error, clearError } = useSession();
   const [busy, setBusy] = useState(false);
 
+  // Where to return once signed in. Set when the cart prompted the sign-in from a
+  // product page, so the customer lands back on the product they were viewing.
+  const { returnTo } = useLocalSearchParams<{ returnTo?: string }>();
+
+  /**
+   * Only a product path is honoured.
+   *
+   * The value comes from a URL parameter, so it is not trusted as a route: an
+   * unchecked string here would let a crafted link redirect a signed-in customer
+   * somewhere unexpected, and would defeat expo-router's typed routes.
+   */
+  const destination = useMemo(() => {
+    if (typeof returnTo !== 'string') return '/';
+    const slug = /^\/product\/([A-Za-z0-9-]+)$/.exec(returnTo)?.[1];
+    return slug ? ({ pathname: '/product/[slug]', params: { slug } } as const) : '/';
+  }, [returnTo]);
+
   const onPress = async () => {
     if (busy) return;
     setBusy(true);
@@ -19,7 +36,7 @@ export default function SignInScreen() {
     try {
       await signIn();
       // Replace so the sign-in screen cannot be returned to with the back button.
-      router.replace('/');
+      router.replace(destination);
     } finally {
       setBusy(false);
     }
