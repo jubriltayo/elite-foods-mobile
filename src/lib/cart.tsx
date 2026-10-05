@@ -26,6 +26,8 @@ export interface CartContextValue {
   cart: Cart | null;
   /** True while any mutation is in flight, so buttons can be disabled. */
   busy: boolean;
+  /** True while the cart is being re-read. Drives the pull-to-refresh spinner. */
+  refreshing: boolean;
   error: string | null;
   clearError: () => void;
   /** Total units, for the tab badge. Null while signed out or not yet loaded. */
@@ -56,7 +58,12 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   const [cart, setCart] = useState<Cart | null>(null);
   const [busy, setBusy] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Whether a cart has been read at least once, so the first load and a refresh
+  // can be told apart without adding a second piece of state.
+  const loadedRef = useRef(false);
 
   // Guards against a second tap while a mutation is in flight. A ref rather than
   // state, because the check and the set must happen without an intervening
@@ -76,12 +83,21 @@ export function CartProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const refresh = useCallback(async () => {
+    // The pull-to-refresh indicator. Only flagged once a cart has actually been
+    // loaded, because refresh() also runs on every focus to pick up a change made
+    // on the web, and a spinner flashing on each tab switch would be noise. The
+    // first load shows the skeleton instead.
+    if (loadedRef.current) setRefreshing(true);
+
     try {
       const next = await readCart();
+      loadedRef.current = true;
       setCart(next);
       setError(null);
     } catch (caught) {
       setError(toDisplayMessage(caught));
+    } finally {
+      setRefreshing(false);
     }
   }, []);
 
@@ -218,6 +234,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     () => ({
       cart: visibleCart,
       busy,
+      refreshing,
       error,
       clearError: () => setError(null),
       itemCount: visibleCart?.itemCount ?? null,
@@ -227,7 +244,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       removeLine,
       removeDeadLines,
     }),
-    [visibleCart, busy, error, refresh, addVariant, setQuantity, removeLine, removeDeadLines],
+    [visibleCart, busy, refreshing, error, refresh, addVariant, setQuantity, removeLine, removeDeadLines],
   );
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;

@@ -13,6 +13,15 @@ export const colors = {
   charcoal: '#1C1A1B',
   muted: '#6B6567',
   border: '#ECE7E4',
+  /**
+   * A border strong enough to read as an edge against white and cream.
+   *
+   * `border` is the hairline used to separate quiet surfaces; on a control that
+   * has to be seen and tapped, a chip outlined in it disappears into the cream.
+   * This is 3.3:1 against cream, which is the minimum for a component boundary,
+   * and it is lighter than `muted` so it still reads as a quiet edge.
+   */
+  chipBorder: '#92857D',
 } as const;
 
 export const spacing = {

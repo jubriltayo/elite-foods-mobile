@@ -13,7 +13,7 @@ import { colors, radii, spacing } from '../../src/theme';
 
 export default function CartScreen() {
   const { status } = useSession();
-  const { cart, busy, error, clearError, refresh, setQuantity, removeLine, removeDeadLines } = useCart();
+  const { cart, busy, refreshing, error, clearError, refresh, setQuantity, removeLine, removeDeadLines } = useCart();
 
   // Refetch on focus as well as on foreground, so returning to the tab shows the
   // server's cart rather than a stale snapshot.
@@ -62,6 +62,7 @@ export default function CartScreen() {
         contentContainerStyle={styles.list}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
         onRefresh={() => void refresh()}
+        refreshing={refreshing}
         ListHeaderComponent={
           <View style={styles.header}>
             {error ? <ErrorBanner message={error} /> : null}
