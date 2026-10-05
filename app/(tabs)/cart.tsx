@@ -103,6 +103,15 @@ export default function CartScreen() {
             <Text style={styles.footnote}>
               {cart.itemCount} {cart.itemCount === 1 ? 'item' : 'items'}
             </Text>
+
+            <Pressable
+              onPress={() => router.push('/checkout')}
+              disabled={busy}
+              style={({ pressed }) => [styles.checkoutButton, pressed && styles.pressed]}
+              accessibilityRole="button"
+            >
+              <Text style={styles.checkoutLabel}>Checkout</Text>
+            </Pressable>
           </View>
         }
       />
@@ -300,6 +309,20 @@ const styles = StyleSheet.create({
   footnote: {
     fontSize: 13,
     color: colors.muted,
+  },
+  checkoutButton: {
+    marginTop: spacing.md,
+    backgroundColor: colors.red,
+    borderRadius: radii.md,
+    paddingVertical: spacing.md,
+    minHeight: 50,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkoutLabel: {
+    color: colors.white,
+    fontSize: 16,
+    fontWeight: '600',
   },
   issueBox: {
     backgroundColor: colors.white,

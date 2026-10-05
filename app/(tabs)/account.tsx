@@ -68,16 +68,22 @@ export default function AccountScreen() {
         ) : null}
       </View>
 
-      <Pressable
-        onPress={() => void onCheck()}
-        disabled={checking}
-        style={({ pressed }) => [styles.button, styles.buttonOutline, pressed && styles.buttonPressed]}
-        accessibilityRole="button"
-      >
-        <Text style={[styles.buttonLabel, styles.buttonLabelRed]}>{checking ? 'Checking…' : 'Check my session'}</Text>
-      </Pressable>
+      {/*
+        A diagnostic, not a feature: it exists to confirm the stored token is
+        accepted by the API. Development only, so it never ships.
+      */}
+      {__DEV__ ? (
+        <Pressable
+          onPress={() => void onCheck()}
+          disabled={checking}
+          style={({ pressed }) => [styles.button, styles.buttonOutline, pressed && styles.buttonPressed]}
+          accessibilityRole="button"
+        >
+          <Text style={[styles.buttonLabel, styles.buttonLabelRed]}>{checking ? 'Checking…' : 'Check my session'}</Text>
+        </Pressable>
+      ) : null}
 
-      {probe ? <Text style={styles.probe}>{probe}</Text> : null}
+      {__DEV__ && probe ? <Text style={styles.probe}>{probe}</Text> : null}
 
       <Pressable
         onPress={() => void signOut()}
