@@ -200,10 +200,17 @@ export async function request<T>(method: string, path: string, options: RequestO
 
     if (!retryable) throw error;
 
+    // Replaying a request that carried a body is safe here specifically because
+    // a 401 means the credential was refused, so the route never ran and no
+    // mutation happened. This is also why the Idempotency-Key in phase 4 is a
+    // belt-and-braces guard rather than the thing preventing a double write.
+    //
     // One re-mint and one replay, never a loop (AGENTS.md rule 4).
     const handled = await onUnauthorized();
     if (!handled) throw error;
 
+    // The replay re-reads the token through the provider, so it picks up the
+    // freshly minted one rather than the rejected one.
     return request<T>(method, path, { ...options, _isRetry: true });
   }
 }
